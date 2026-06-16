@@ -1,184 +1,214 @@
 EventBase — Event Registration System
-A full-stack Event Registration System with seat management, race-condition-safe booking, and real-time stats.
+A full-stack REST API for managing events and user registrations with race-condition-safe seat tracking.
 
+Table of Contents
 Features
-Create events with unique names, seat limits, and future dates
-Register users for events — duplicate and overbooking prevention
-Cancel registrations — seat instantly returned to pool
-Browse all events with date sorting and upcoming-only filter
-Live dashboard with summary stats
-Race-condition-safe seat tracking using database row-level locks
+Tech Stack
+Project Structure
+Getting Started
+Environment Variables
+API Endpoints
+Database Schema
+Business Rules & Validation
+Race Condition Handling
+Error Responses
+Features
+Create Events — unique name, seat limit, future date validation
+Register Users — per-event, duplicate-safe, timestamped
+Cancel Registrations — seat instantly restored to pool
+Browse Events — sort by date/name, filter upcoming only
+Live Dashboard — real-time stats (total events, registrations, seats)
+Race-Condition Safe — database row-level locking prevents overbooking
 Tech Stack
 Layer	Technology
-Backend	Node.js 24, Express 5, TypeScript
+Runtime	Node.js 24, TypeScript 5
+Backend	Express 5
 Database	PostgreSQL + Drizzle ORM
-Validation	Zod (v4), drizzle-zod
-API Contract	OpenAPI 3.1 + Orval codegen
-Frontend	React + Vite + TanStack Query
-UI	shadcn/ui + Tailwind CSS + wouter
+Validation	Zod v4 + drizzle-zod
+API Contract	OpenAPI 3.1 → Orval codegen
+Frontend	React 19 + Vite
+Data Fetching	TanStack Query (React Query)
+UI	shadcn/ui + Tailwind CSS
+Routing	wouter
 Package Manager	pnpm workspaces
 Project Structure
 eventbase/
 │
 ├── lib/
 │   ├── api-spec/
-│   │   ├── openapi.yaml              # API contract (single source of truth)
-│   │   └── orval.config.ts           # Codegen config (generates hooks + schemas)
+│   │   ├── openapi.yaml              # API contract — single source of truth
+│   │   └── orval.config.ts           # Codegen configuration
 │   ├── api-zod/                      # Auto-generated Zod validation schemas
 │   ├── api-client-react/             # Auto-generated React Query hooks
-│   └── db/
-│       └── src/
-│           ├── index.ts              # DB client export
-│           └── schema/
-│               ├── events.ts         # Events table definition
-│               ├── registrations.ts  # Registrations table definition
-│               └── index.ts          # Schema barrel export
+│   └── db/src/
+│       ├── index.ts                  # DB client export
+│       └── schema/
+│           ├── events.ts             # Events table
+│           ├── registrations.ts      # Registrations table
+│           └── index.ts              # Barrel export
 │
 ├── artifacts/
-│   ├── api-server/
-│   │   └── src/
-│   │       ├── app.ts                # Express app + middleware setup
-│   │       ├── index.ts              # Server entry point (port 8080)
-│   │       ├── lib/
-│   │       │   └── logger.ts         # Pino structured logger
-│   │       └── routes/
-│   │           ├── index.ts          # Registers all routers
-│   │           ├── health.ts         # GET /api/healthz
-│   │           ├── events.ts         # Event CRUD + summary stats
-│   │           └── registrations.ts  # Register + cancel
+│   ├── api-server/src/
+│   │   ├── app.ts                    # Express app + middleware
+│   │   ├── index.ts                  # Server entry point (port 8080)
+│   │   ├── lib/
+│   │   │   └── logger.ts             # Pino structured logger
+│   │   └── routes/
+│   │       ├── index.ts              # Registers all routers
+│   │       ├── health.ts             # GET /api/healthz
+│   │       ├── events.ts             # Event CRUD + summary stats
+│   │       └── registrations.ts      # Register + cancel
 │   │
-│   └── event-registration/
-│       └── src/
-│           ├── main.tsx              # React entry point (QueryClient setup)
-│           ├── App.tsx               # Root component + wouter routing
-│           ├── index.css             # Global theme + Tailwind CSS
-│           ├── pages/
-│           │   ├── dashboard.tsx     # Live stats + upcoming events
-│           │   ├── events.tsx        # All events with sort + filter
-│           │   ├── event-new.tsx     # Create event form
-│           │   ├── event-detail.tsx  # Event info + registrations list
-│           │   └── not-found.tsx     # 404 page
-│           ├── components/
-│           │   ├── layout.tsx        # Sidebar navigation layout
-│           │   └── ui/               # shadcn/ui components (40+ components)
-│           ├── hooks/
-│           │   ├── use-toast.ts      # Toast notification hook
-│           │   └── use-mobile.tsx    # Mobile screen detection
-│           └── lib/
-│               └── utils.ts          # Tailwind cn() merge utility
+│   └── event-registration/src/
+│       ├── main.tsx                  # React entry point
+│       ├── App.tsx                   # Root + wouter routing
+│       ├── index.css                 # Global theme + Tailwind CSS
+│       ├── pages/
+│       │   ├── dashboard.tsx         # Live stats + upcoming events
+│       │   ├── events.tsx            # All events (sort + filter)
+│       │   ├── event-new.tsx         # Create event form
+│       │   ├── event-detail.tsx      # Event info + register/cancel
+│       │   └── not-found.tsx         # 404 page
+│       ├── components/
+│       │   ├── layout.tsx            # Sidebar navigation
+│       │   └── ui/                   # shadcn/ui components
+│       ├── hooks/
+│       │   ├── use-toast.ts          # Toast notifications
+│       │   └── use-mobile.tsx        # Mobile detection
+│       └── lib/
+│           └── utils.ts              # Tailwind cn() utility
 
 Getting Started
 Prerequisites
 Node.js 24+
 pnpm
-PostgreSQL database
-Environment Variables
-Create a .env file or set these in your environment:
-
-DATABASE_URL=postgresql://user:password@localhost:5432/eventbase
-SESSION_SECRET=your-secret-here
-
+PostgreSQL
 Install Dependencies
 pnpm install
 
 Push Database Schema
 pnpm --filter @workspace/db run push
 
-Run in Development
-Start the API server:
-
+Run Development Servers
+# Terminal 1 — API Server (port 8080)
 pnpm --filter @workspace/api-server run dev
-
-Start the frontend:
-
+# Terminal 2 — Frontend
 pnpm --filter @workspace/event-registration run dev
 
-Regenerate API Code (after OpenAPI changes)
+Other Useful Commands
+# Regenerate API hooks + schemas after OpenAPI changes
 pnpm --filter @workspace/api-spec run codegen
-
-Typecheck All Packages
+# Full typecheck (all packages)
 pnpm run typecheck
+# Typecheck libs only
+pnpm run typecheck:libs
 
+Environment Variables
+Variable	Description	Required
+DATABASE_URL	PostgreSQL connection string	✅ Yes
+SESSION_SECRET	Session signing secret	✅ Yes
 API Endpoints
-Events
-Method	Endpoint	Description
-GET	/api/events	List all events (supports ?upcoming=true&sortBy=date&sortOrder=asc)
-POST	/api/events	Create a new event
-GET	/api/events/:id	Get single event details
-GET	/api/events/stats/summary	Get dashboard summary stats
-Registrations
-Method	Endpoint	Description
-GET	/api/events/:id/registrations	List active registrations for an event
-POST	/api/events/:id/registrations	Register a user for an event
-DELETE	/api/registrations/:id	Cancel a registration
 Health
 Method	Endpoint	Description
 GET	/api/healthz	Server health check
+Events
+Method	Endpoint	Description
+GET	/api/events	List all events
+GET	/api/events?upcoming=true	Filter upcoming events only
+GET	/api/events?sortBy=date&sortOrder=asc	Sort events by date or name
+POST	/api/events	Create a new event
+GET	/api/events/:id	Get single event details
+GET	/api/events/stats/summary	Dashboard summary stats
+Registrations
+Method	Endpoint	Description
+GET	/api/events/:id/registrations	List active registrations
+POST	/api/events/:id/registrations	Register a user for an event
+DELETE	/api/registrations/:id	Cancel a registration
+Request Bodies
+POST /api/events
+
+{
+  "name": "Tech Summit 2026",
+  "description": "Annual tech gathering",
+  "totalSeats": 100,
+  "eventDate": "2026-08-15T18:00:00.000Z"
+}
+
+POST /api/events/:id/registrations
+
+{
+  "userName": "Ali Hassan"
+}
+
 Database Schema
-events
-id             SERIAL PRIMARY KEY
-name           TEXT NOT NULL UNIQUE
-description    TEXT
-total_seats    INTEGER NOT NULL
-available_seats INTEGER NOT NULL
-event_date     TIMESTAMPTZ NOT NULL
-created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-
-registrations
-id             SERIAL PRIMARY KEY
-event_id       INTEGER NOT NULL REFERENCES events(id)
-user_name      TEXT NOT NULL
-status         TEXT NOT NULL DEFAULT 'active'  -- 'active' | 'cancelled'
-registered_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-cancelled_at   TIMESTAMPTZ
-
-Business Rules
-Rule	Enforcement
+events table
+Column	Type	Description
+id	SERIAL PK	Auto-increment primary key
+name	TEXT UNIQUE	Event name (must be unique)
+description	TEXT	Optional description
+total_seats	INTEGER	Total capacity
+available_seats	INTEGER	Remaining seats (updated atomically)
+event_date	TIMESTAMPTZ	Event date (must be future)
+created_at	TIMESTAMPTZ	Auto-set on insert
+registrations table
+Column	Type	Description
+id	SERIAL PK	Auto-increment primary key
+event_id	INTEGER FK	References events.id
+user_name	TEXT	Name of the registered user
+status	TEXT	active or cancelled
+registered_at	TIMESTAMPTZ	Auto-set on insert
+cancelled_at	TIMESTAMPTZ	Set when registration is cancelled
+Business Rules & Validation
+Rule	How Enforced
 Event name must be unique	DB unique constraint + 409 response
-Total seats must be > 0	Zod schema validation
-Event date must be in future	Server-side date check
-Cannot register if event is full	Transaction check before insert
-Same user cannot register twice	Active registration check
-Cancellation restores the seat	Atomic transaction update
-Cancelled users excluded from active list	status = 'active' filter
-Race Condition Safety
-Registration uses a PostgreSQL row-level lock to prevent overbooking:
+Total seats must be greater than 0	Zod schema + server-side check
+Event date must be in the future	Server-side Date comparison
+Cannot register if event is full	Checked inside transaction before insert
+Same user cannot register twice (same event)	Active registration check + 409 response
+Seat restored on cancellation	Atomic UPDATE inside transaction
+Cancelled users excluded from active list	WHERE status = 'active' filter on query
+Cancelled records retained for history	Soft delete — status set to cancelled
+Race Condition Handling
+Uses PostgreSQL row-level locking (SELECT ... FOR UPDATE) inside a transaction to prevent overbooking when multiple users register simultaneously.
 
-BEGIN;
-SELECT * FROM events WHERE id = ? FOR UPDATE;  -- Lock the row
--- Check seats available
--- Check duplicate registration
-UPDATE events SET available_seats = available_seats - 1 WHERE id = ?;
-INSERT INTO registrations (event_id, user_name, status) VALUES (?, ?, 'active');
-COMMIT;
+POST /api/events/:id/registrations
+BEGIN TRANSACTION
+   │
+   ├── SELECT * FROM events WHERE id = ? FOR UPDATE   ← Lock this row
+   │
+   ├── available_seats <= 0?
+   │       YES → ROLLBACK → 409 "Event is full"
+   │
+   ├── User already registered? (active status)
+   │       YES → ROLLBACK → 409 "Already registered"
+   │
+   ├── UPDATE events SET available_seats = available_seats - 1
+   │
+   ├── INSERT INTO registrations (event_id, user_name, status='active')
+   │
+COMMIT → 201 Created
 
-If two requests arrive simultaneously for the last seat, the second one waits for the first transaction to complete, then receives a "Event is full" error — no overbooking possible.
+Same pattern for cancellation — seat restored atomically:
+
+DELETE /api/registrations/:id
+BEGIN TRANSACTION
+   ├── UPDATE events SET available_seats = available_seats + 1
+   ├── UPDATE registrations SET status='cancelled', cancelled_at=NOW()
+COMMIT → 200 OK
 
 Error Responses
-All errors return JSON in this format:
+All errors return JSON:
 
 { "error": "Human-readable error message" }
 
 HTTP Code	Situation
-400	Validation error (missing fields, bad format, past date)
+400	Missing fields, invalid format, past event date
 404	Event or registration not found
-409	Duplicate name, already registered, event full, already cancelled
-Frontend Pages
-Route	Page	Description
-/	Dashboard	Live stats + upcoming events overview
-/events	Events List	All events with sorting and filtering
-/events/new	Create Event	Form to create a new event
-/events/:id	Event Detail	Full event info, registrations, register/cancel
-Architecture Decisions
-Contract-first API — OpenAPI spec is written first, then Zod schemas and React hooks are auto-generated. Never hand-write types that codegen produces.
+409	Duplicate event name
+409	User already registered for this event
+409	Event is full — no available seats
+409	Registration is already cancelled
+Repository Naming (Innovaxel Submission)
+B0626 - Mehwish Batool - Innovaxel - Backend Intern
 
-Denormalized availableSeats — Stored directly on the events table and updated inside every registration/cancellation transaction. Avoids expensive COUNT queries on the hot read path.
-
-Row-level locking — SELECT ... FOR UPDATE inside a transaction is the simplest and most reliable way to prevent race conditions in PostgreSQL without advisory locks or application-level queuing.
-
-Cancelled records retained — Registrations are never deleted; they are marked cancelled. This preserves audit history and allows reporting on who cancelled.
-
-Submission
-(Innovaxel assessment):
-
-B0626 - [Mehwish Batool] - Innovaxel - Backend Intern
+Built with Express 5 · PostgreSQL · Drizzle ORM · React · TanStack Query
