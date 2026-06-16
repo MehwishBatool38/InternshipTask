@@ -91,7 +91,10 @@ router.get("/events", async (req, res): Promise<void> => {
 router.post("/events", async (req, res): Promise<void> => {
   const parsed = CreateEventBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    const firstIssue = parsed.error.issues[0];
+    const field = firstIssue?.path?.join(".") ?? "input";
+    const msg = firstIssue?.message ?? "Invalid input";
+    res.status(400).json({ error: `${field}: ${msg}` });
     return;
   }
 

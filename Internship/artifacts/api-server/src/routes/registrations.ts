@@ -59,7 +59,10 @@ router.post("/events/:eventId/registrations", async (req, res): Promise<void> =>
 
   const body = RegisterForEventBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: body.error.message });
+    const firstIssue = body.error.issues[0];
+    const field = firstIssue?.path?.join(".") ?? "input";
+    const msg = firstIssue?.message ?? "Invalid input";
+    res.status(400).json({ error: `${field}: ${msg}` });
     return;
   }
 
@@ -69,12 +72,14 @@ router.post("/events/:eventId/registrations", async (req, res): Promise<void> =>
   await db.execute(`BEGIN`);
 
   try {
-    const [event] = await db.execute<{
+    const lockResult = await db.execute<{
       id: number;
       available_seats: number;
     }>(
       `SELECT id, available_seats FROM events WHERE id = ${eventId} FOR UPDATE`,
-    ) as unknown as [{ id: number; available_seats: number } | undefined];
+    );
+
+    const event = lockResult.rows[0] as { id: number; available_seats: number } | undefined;
 
     if (!event) {
       await db.execute(`ROLLBACK`);
